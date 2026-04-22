@@ -14,7 +14,7 @@
     // Container for both boxes to keep them aligned
     var container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.top = '2px';
+    container.style.top = '9px';
     container.style.left = '2px';
     container.style.zIndex = '10000';
     container.style.display = 'flex';
@@ -27,7 +27,7 @@
         el.type = 'text';
         el.placeholder = placeholder;
         el.style.width = '100px';
-        el.style.padding = '5px';
+        el.style.padding = '2px';
         el.style.border = '2px solid #607799';
         el.style.borderRadius = '4px';
         el.style.backgroundColor = 'white';
