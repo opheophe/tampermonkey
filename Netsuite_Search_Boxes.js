@@ -8,6 +8,8 @@
 // @grant        none
 // ==/UserScript==
 
+
+// OBS: Sätt developer mode chrome://extensions/ och tillåt att tampermonkey kör script
 (function() {
     'use strict';
 
