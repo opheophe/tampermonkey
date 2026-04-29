@@ -5,6 +5,7 @@
 // @description  Adds VNR and Transaction ID search boxes to the top left
 // @author       You
 // @match        https://1313874.app.netsuite.com/*
+// @match        https://picpac.medovia.se/*
 // @grant        none
 // ==/UserScript==
 
@@ -16,31 +17,31 @@
     // Container for both boxes to keep them aligned
     var container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.top = '9px';
-    container.style.left = '2px';
+    container.style.top = '0px';
+    container.style.left = '0px';
     container.style.zIndex = '10000';
     container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '4px';
+    container.style.flexDirection = 'row';
+    container.style.gap = '0px';
     document.body.appendChild(container);
 
     // Helper to style inputs
     function styleInput(el, placeholder) {
         el.type = 'text';
         el.placeholder = placeholder;
-        el.style.width = '100px';
+        el.style.width = '50px';
         el.style.padding = '2px';
         el.style.border = '2px solid #607799';
         el.style.borderRadius = '4px';
         el.style.backgroundColor = 'white';
         el.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-        el.style.fontSize = '12px';
+        el.style.fontSize = '10px';
         container.appendChild(el);
     }
 
     // BOX 1: VNR Search
     var vnrInput = document.createElement('input');
-    styleInput(vnrInput, 'VNR Search');
+    styleInput(vnrInput, 'VNR');
 
     vnrInput.onkeypress = function(e) {
         if (e.key === 'Enter') {
