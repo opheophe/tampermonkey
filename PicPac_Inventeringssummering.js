@@ -54,11 +54,11 @@
 
         const innerContainer = targetHeader.querySelector('div, button') || targetHeader;
         let sumContainer = innerContainer.querySelector('.custom-header-sum');
-        
+
         if (!sumContainer) {
             sumContainer = document.createElement('div');
             sumContainer.className = 'custom-header-sum';
-            
+
             // Clean, non-intrusive absolute layout properties
             sumContainer.style.position = 'absolute';
             sumContainer.style.bottom = '4px';
@@ -71,11 +71,12 @@
             sumContainer.style.borderRadius = '4px';
             sumContainer.style.border = '1px solid #e0e0e0';
             sumContainer.style.pointerEvents = 'none'; // Prevents blocking header clicks/sorting actions
-            
+
             innerContainer.appendChild(sumContainer);
         }
-        
-        sumContainer.textContent = `Totalt: ${formattedSum}`;
+
+        //sumContainer.textContent = `Totalt: ${formattedSum}`;
+        sumContainer.textContent = `${formattedSum}`;
     }
 
     const initInterval = setInterval(() => {
@@ -88,7 +89,7 @@
                 const observer = new MutationObserver(() => calculateVardeSum());
                 observer.observe(tbody, { childList: true, subtree: true });
             }
-            
+
             calculateVardeSum();
         }
     }, 250);
