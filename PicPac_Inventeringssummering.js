@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.5
 // @description  Calculates and displays the total sum of the Värde column on both results and durability pages.
-// @author       Gemini
+// @author       Ophe
 // @match        https://picpac.medovia.se/admin/stocktaking_results*
 // @match        https://picpac.medovia.se/item_transfer_assignments/pending_durability*
 // @grant        none
