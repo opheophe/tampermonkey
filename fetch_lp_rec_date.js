@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         PicPac - Fetch License Plate Received Date
+// @name         PicPac - Fetch License Plate Received Date & Highlight Old Rows
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Fetches and displays the "Mottaget" date for each license plate directly in the Pallet Racks table
+// @version      1.2
+// @description  Fetches the "Mottaget" date and highlights rows older than 24 hours in light red
 // @author       Cristopher Dahlström
 // @match        https://picpac.medovia.se/admin/pallet_racks/*
 // @grant        none
@@ -36,12 +36,12 @@
         dateCell.textContent = 'Laddar...'; // Temporary loading status
         row.appendChild(dateCell);
 
-        // Fetch the date in the background
-        fetchDateAndInsert(targetUrl, dateCell);
+        // Fetch the date and pass the row element so we can highlight it
+        fetchDateAndInsert(targetUrl, dateCell, row);
     }
 
-    // Function that fetches the page and parses the "Mottaget" date
-    async function fetchDateAndInsert(url, cellToUpdate) {
+    // Function that fetches the page, parses the "Mottaget" date, and checks the age
+    async function fetchDateAndInsert(url, cellToUpdate, rowElement) {
         try {
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -50,23 +50,38 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlText, 'text/html');
 
-            // Find all two-line list items on the target page
+            // Find all list items on the target page
             const listItems = doc.querySelectorAll('md-list-item');
-            let receivedDate = null;
+            let receivedDateStr = null;
 
             for (const item of listItems) {
                 const description = item.querySelector('p');
                 const value = item.querySelector('h3');
 
-                // If the description element says "Mottaget", extract the date
+                // Extract the date if the description matches "Mottaget"
                 if (description && description.textContent.trim() === 'Mottaget' && value) {
-                    receivedDate = value.textContent.trim();
+                    receivedDateStr = value.textContent.trim();
                     break;
                 }
             }
 
-            if (receivedDate) {
-                cellToUpdate.textContent = receivedDate;
+            if (receivedDateStr) {
+                cellToUpdate.textContent = receivedDateStr;
+
+                // --- Highlight Logic ---
+                // Parse the timestamp (e.g., "2026-07-08 15:46:35")
+                // Replacing space with 'T' converts it to ISO format for reliable browser parsing
+                const receivedDate = new Date(receivedDateStr.replace(' ', 'T'));
+                const now = new Date();
+
+                // Calculate the difference in milliseconds
+                const timeDifference = now - receivedDate;
+                const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+
+                if (timeDifference > twentyFourHoursInMs) {
+                    // Set background color of the table row to light red
+                    rowElement.style.backgroundColor = '#ff9696';
+                }
             } else {
                 cellToUpdate.textContent = 'Saknas'; // "Missing"
             }
