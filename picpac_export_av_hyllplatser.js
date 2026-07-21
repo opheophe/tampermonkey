@@ -1,0 +1,215 @@
+// ==UserScript==
+// @name         ApoSuite - Export All Pages to CSV
+// @namespace    http://tampermonkey.net/
+// @version      2026-07-21
+// @description  Fetches all pages sequentially and downloads CSV
+// @author       Cristopher Dahlström
+// @match        https://picpac.medovia.se/admin/bin_locations*
+// @run-at       document-idle
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    function init() {
+        if (document.getElementById('tampermonkey-csv-btn')) return;
+
+        // --- 1. Header Placement ---
+        var headerTitle = document.querySelector('.header-title') || document.querySelector('.section-title');
+        if (!headerTitle) {
+            setTimeout(init, 200);
+            return;
+        }
+
+        headerTitle.style.display = 'flex';
+        headerTitle.style.alignItems = 'center';
+        headerTitle.style.gap = '15px';
+
+        var btn = document.createElement('button');
+        btn.id = 'tampermonkey-csv-btn';
+        btn.innerText = '📥 Export All to CSV';
+        btn.style.padding = '6px 12px';
+        btn.style.backgroundColor = '#ffffff';
+        btn.style.color = '#008080';
+        btn.style.border = '1px solid #008080';
+        btn.style.borderRadius = '4px';
+        btn.style.fontWeight = 'bold';
+        btn.style.cursor = 'pointer';
+        btn.style.fontSize = '13px';
+        btn.style.lineHeight = '1.2';
+
+        headerTitle.appendChild(btn);
+
+        // --- 2. Overlay Setup ---
+        var overlay = document.createElement('div');
+        overlay.style.display = 'none';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.background = 'rgba(0, 0, 0, 0.6)';
+        overlay.style.zIndex = '100000';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+
+        var dialog = document.createElement('div');
+        dialog.style.background = '#ffffff';
+        dialog.style.padding = '24px 32px';
+        dialog.style.borderRadius = '8px';
+        dialog.style.textAlign = 'center';
+        dialog.style.minWidth = '320px';
+        dialog.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)';
+
+        dialog.innerHTML =
+            '<h3 style="margin-top:0; color: #333;">Fetching Pages...</h3>' +
+            '<p id="export-progress-text" style="font-size: 16px; color: #555; margin: 15px 0;">Preparing request...</p>' +
+            '<div style="background: #eee; border-radius: 4px; height: 12px; width: 100%; overflow: hidden; margin-bottom: 20px;">' +
+                '<div id="export-progress-bar" style="background: #008080; height: 100%; width: 0%; transition: width 0.2s;"></div>' +
+            '</div>' +
+            '<button id="export-abort-btn" style="padding: 8px 16px; background-color: #d32f2f; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Abort Export</button>';
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        var progressText = dialog.querySelector('#export-progress-text');
+        var progressBar = dialog.querySelector('#export-progress-bar');
+        var abortBtn = dialog.querySelector('#export-abort-btn');
+
+        var isAborted = false;
+        var timeoutId = null;
+
+        // Abort Listener: Instantly hides dialog and clears timers
+        abortBtn.addEventListener('click', function() {
+            isAborted = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            overlay.style.display = 'none';
+            btn.disabled = false;
+            progressBar.style.width = '0%';
+        });
+
+        // --- 3. Export Logic ---
+        btn.addEventListener('click', function() {
+            btn.disabled = true;
+            isAborted = false;
+            overlay.style.display = 'flex';
+
+            var tbody = document.querySelector('table.slim tbody');
+            if (!tbody) {
+                alert('Table not found on this page!');
+                overlay.style.display = 'none';
+                btn.disabled = false;
+                return;
+            }
+
+            // Detect max page
+            var totalPages = 1;
+            var pageLinks = document.querySelectorAll('.pagination a');
+            for (var i = 0; i < pageLinks.length; i++) {
+                var pageMatch = pageLinks[i].href.match(/page=(\d+)/);
+                if (pageMatch) {
+                    var pageNum = parseInt(pageMatch[1], 10);
+                    if (pageNum > totalPages) totalPages = pageNum;
+                }
+            }
+
+            var currentPage = 2;
+
+            function fetchNextPage() {
+                if (isAborted) return;
+
+                if (currentPage > totalPages) {
+                    progressText.innerText = 'Generating CSV file...';
+                    timeoutId = setTimeout(generateCSV, 100);
+                    return;
+                }
+
+                progressText.innerText = 'Fetching page ' + currentPage + ' of ' + totalPages + '...';
+                progressBar.style.width = Math.round((currentPage / totalPages) * 100) + '%';
+
+                var baseUrl = new URL(window.location.href);
+                baseUrl.searchParams.set('page', currentPage);
+
+                fetch(baseUrl.href)
+                    .then(function(response) {
+                        if (!response.ok) throw new Error('HTTP error ' + response.status);
+                        return response.text();
+                    })
+                    .then(function(text) {
+                        if (isAborted) return;
+
+                        var doc = new DOMParser().parseFromString(text, 'text/html');
+                        var newRows = doc.querySelectorAll('table.slim tbody tr');
+
+                        if (newRows.length === 0) {
+                            // If a page returns no rows, end early and generate CSV
+                            generateCSV();
+                            return;
+                        }
+
+                        for (var j = 0; j < newRows.length; j++) {
+                            tbody.appendChild(newRows[j]);
+                        }
+
+                        currentPage++;
+                        timeoutId = setTimeout(fetchNextPage, 200);
+                    })
+                    .catch(function(err) {
+                        console.error('Error fetching page ' + currentPage, err);
+                        if (isAborted) return;
+                        currentPage++;
+                        timeoutId = setTimeout(fetchNextPage, 200);
+                    });
+            }
+
+            function generateCSV() {
+                if (isAborted) return;
+
+                var table = document.querySelector('table.slim');
+                if (table) {
+                    var rows = table.querySelectorAll('tr');
+                    var csvLines = [];
+
+                    for (var r = 0; r < rows.length; r++) {
+                        var cells = rows[r].querySelectorAll('th, td');
+                        var rowData = [];
+
+                        // Omit last action column
+                        for (var c = 0; c < cells.length - 1; c++) {
+                            var cellText = cells[c].innerText.trim().replace(/\s+/g, ' ');
+                            cellText = cellText.replace(/"/g, '""');
+                            rowData.push('"' + cellText + '"');
+                        }
+
+                        if (rowData.length > 0) {
+                            csvLines.push(rowData.join(','));
+                        }
+                    }
+
+                    var csvContent = '\uFEFF' + csvLines.join('\n');
+                    var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    var url = URL.createObjectURL(blob);
+                    var link = document.createElement('a');
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', 'bin_locations_' + new Date().toISOString().slice(0, 10) + '.csv');
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+
+                overlay.style.display = 'none';
+                btn.disabled = false;
+                progressBar.style.width = '0%';
+            }
+
+            fetchNextPage();
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
