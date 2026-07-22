@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         ApoSuite - Export All Pages to CSV
+// @name         PicPac - Universal simple table-fetch
 // @namespace    http://tampermonkey.net/
-// @version      2026-07-21
-// @description  Fetches all pages sequentially and downloads CSV
+// @version      2026-07-22
+// @description  Fetches all pages sequentially for static tables and downloads CSV
 // @author       Cristopher Dahlström
-// @match        https://picpac.medovia.se/admin/bin_locations*
+// @match        https://picpac.medovia.se/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -12,15 +12,30 @@
 (function() {
     'use strict';
 
-    function init() {
+    function findMainTable(doc = document) {
+        return doc.querySelector('table.slim') ||
+               doc.querySelector('table[md-data-table]') ||
+               doc.querySelector('table');
+    }
+
+    function tryInjectButton() {
+        // Don't duplicate if button is already present
         if (document.getElementById('tampermonkey-csv-btn')) return;
 
-        // --- 1. Header Placement ---
-        var headerTitle = document.querySelector('.header-title') || document.querySelector('.section-title');
-        if (!headerTitle) {
-            setTimeout(init, 200);
+        var initialTable = findMainTable();
+        if (!initialTable) return;
+
+        // Skip pages that explicitly fetch data dynamically via AJAX endpoint
+        if (initialTable.hasAttribute('data-source')) {
             return;
         }
+
+        // Find header toolbar target
+        var headerTitle = document.querySelector('.header-title') ||
+                          document.querySelector('.section-title') ||
+                          document.querySelector('.site-content-toolbar');
+
+        if (!headerTitle) return;
 
         headerTitle.style.display = 'flex';
         headerTitle.style.alignItems = 'center';
@@ -28,7 +43,7 @@
 
         var btn = document.createElement('button');
         btn.id = 'tampermonkey-csv-btn';
-        btn.innerText = '📥 Export All to CSV';
+        btn.innerText = '📥 Export Table to CSV';
         btn.style.padding = '6px 12px';
         btn.style.backgroundColor = '#ffffff';
         btn.style.color = '#008080';
@@ -38,11 +53,19 @@
         btn.style.cursor = 'pointer';
         btn.style.fontSize = '13px';
         btn.style.lineHeight = '1.2';
+        btn.style.zIndex = '1000';
 
         headerTitle.appendChild(btn);
 
-        // --- 2. Overlay Setup ---
+        // Setup Overlay
+        setupExportOverlay(btn);
+    }
+
+    function setupExportOverlay(btn) {
+        if (document.getElementById('export-overlay')) return;
+
         var overlay = document.createElement('div');
+        overlay.id = 'export-overlay';
         overlay.style.display = 'none';
         overlay.style.position = 'fixed';
         overlay.style.top = '0';
@@ -80,7 +103,6 @@
         var isAborted = false;
         var timeoutId = null;
 
-        // Abort Listener: Instantly hides dialog and clears timers
         abortBtn.addEventListener('click', function() {
             isAborted = true;
             if (timeoutId) clearTimeout(timeoutId);
@@ -89,23 +111,23 @@
             progressBar.style.width = '0%';
         });
 
-        // --- 3. Export Logic ---
         btn.addEventListener('click', function() {
             btn.disabled = true;
             isAborted = false;
             overlay.style.display = 'flex';
 
-            var tbody = document.querySelector('table.slim tbody');
+            var mainTable = findMainTable();
+            var tbody = mainTable ? mainTable.querySelector('tbody') : null;
+
             if (!tbody) {
-                alert('Table not found on this page!');
+                alert('Table container not found on this page!');
                 overlay.style.display = 'none';
                 btn.disabled = false;
                 return;
             }
 
-            // Detect max page
             var totalPages = 1;
-            var pageLinks = document.querySelectorAll('.pagination a');
+            var pageLinks = document.querySelectorAll('.pagination a, md-data-table-pagination a');
             for (var i = 0; i < pageLinks.length; i++) {
                 var pageMatch = pageLinks[i].href.match(/page=(\d+)/);
                 if (pageMatch) {
@@ -140,10 +162,10 @@
                         if (isAborted) return;
 
                         var doc = new DOMParser().parseFromString(text, 'text/html');
-                        var newRows = doc.querySelectorAll('table.slim tbody tr');
+                        var fetchedTable = findMainTable(doc);
+                        var newRows = fetchedTable ? fetchedTable.querySelectorAll('tbody tr') : [];
 
                         if (newRows.length === 0) {
-                            // If a page returns no rows, end early and generate CSV
                             generateCSV();
                             return;
                         }
@@ -166,7 +188,7 @@
             function generateCSV() {
                 if (isAborted) return;
 
-                var table = document.querySelector('table.slim');
+                var table = findMainTable();
                 if (table) {
                     var rows = table.querySelectorAll('tr');
                     var csvLines = [];
@@ -175,8 +197,14 @@
                         var cells = rows[r].querySelectorAll('th, td');
                         var rowData = [];
 
-                        // Omit last action column
-                        for (var c = 0; c < cells.length - 1; c++) {
+                        var colCount = cells.length;
+                        var hasActionCol = colCount > 1 && (
+                            cells[colCount - 1].querySelector('md-icon, a, button') ||
+                            cells[colCount - 1].innerText.trim() === 'Visa'
+                        );
+                        var targetLength = hasActionCol ? colCount - 1 : colCount;
+
+                        for (var c = 0; c < targetLength; c++) {
                             var cellText = cells[c].innerText.trim().replace(/\s+/g, ' ');
                             cellText = cellText.replace(/"/g, '""');
                             rowData.push('"' + cellText + '"');
@@ -187,12 +215,16 @@
                         }
                     }
 
+                    var pathParts = window.location.pathname.split('/').filter(Boolean);
+                    var pageName = pathParts.length > 0 ? pathParts[pathParts.length - 1] : 'export';
+                    var filename = pageName + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+
                     var csvContent = '\uFEFF' + csvLines.join('\n');
                     var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                     var url = URL.createObjectURL(blob);
                     var link = document.createElement('a');
                     link.setAttribute('href', url);
-                    link.setAttribute('download', 'bin_locations_' + new Date().toISOString().slice(0, 10) + '.csv');
+                    link.setAttribute('download', filename);
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -207,9 +239,13 @@
         });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
+    // SPA Observer: Watches for page changes & mounts button dynamically
+    var observer = new MutationObserver(function() {
+        tryInjectButton();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Initial load call
+    tryInjectButton();
 })();
