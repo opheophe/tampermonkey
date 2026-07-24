@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         ApoSuite - Visa fler inköpsorderrader
+// @name         PicPac - Visa fler rader (1000)
 // @namespace    https://picpac.medovia.se/
-// @version      2026-07-21
-// @description  Fetches all pages sequentially and downloads CSV
+// @version      2026-07-24
+// @description  Sets DataTables dropdown option to 1000 rows across ApoSuite pages
 // @author       Cristopher Dahlström
-// @match        https://picpac.medovia.se/admin/purchase_order_lines/*
+// @match        https://picpac.medovia.se/*
 // @grant        none
 // ==/UserScript==
 
@@ -12,14 +12,14 @@
     'use strict';
 
     function setPageSizeTo1000() {
-        // Find the length select dropdown
-        const select = document.querySelector('select[name$="_length"]');
+        // Targets DataTables length dropdowns by name ending in '_length' or container class '.dataTables_length'
+        const select = document.querySelector('.dataTables_length select, select[name$="_length"]');
         if (!select) return false;
 
         // Check if option 1000 already exists
         let option = Array.from(select.options).find(opt => opt.value === '1000');
 
-        // Add option '1000' with plain text '1000' so it displays nicely next to "rader"
+        // Inject option '1000'
         if (!option) {
             option = new Option('1000', '1000');
             select.add(option);
@@ -31,7 +31,7 @@
 
             // 1. Try triggering via DataTables API if present
             if (window.jQuery && window.jQuery.fn.dataTable) {
-                const $table = window.jQuery(select).closest('table.datatable');
+                const $table = window.jQuery(select).closest('.dataTables_wrapper').find('table.datatable');
                 if ($table.length && window.jQuery.fn.dataTable.isDataTable($table)) {
                     $table.DataTable().page.len(1000).draw();
                     console.log('[Userscript] Triggered DataTables API page.len(1000)');
@@ -39,7 +39,7 @@
                 }
             }
 
-            // 2. Fallback to dispatching jQuery change event
+            // 2. Fallback to dispatching change event
             if (window.jQuery) {
                 window.jQuery(select).trigger('change');
             } else {
@@ -52,10 +52,10 @@
         return true;
     }
 
-    // Observer to wait for the dynamic table controls to load
+    // Observer to handle dynamic content loads
     const observer = new MutationObserver((mutations, obs) => {
         if (setPageSizeTo1000()) {
-            obs.disconnect();
+            // Keep observing in case tab switches or table reloads occur dynamically
         }
     });
 
@@ -64,6 +64,6 @@
         subtree: true
     });
 
-    // Fallback run
+    // Fallback execution
     setTimeout(setPageSizeTo1000, 500);
 })();
