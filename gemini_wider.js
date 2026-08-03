@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Gemini Chat Full Width & Table Un-Clipper
 // @namespace    https://gemini.google.com/
-// @version      3.1
-// @description  Blows open Gemini's hardcoded message container width and forces tables to expand.
+// @version      3.2
+// @description  Makes gemini wider.
 // @author       Your Friendly Neighborhood Coder
 // @match        https://gemini.google.com/*
 // @icon         https://www.gstatic.com/lamda/images/gemini_sparkle_aurora_33f86dc0c0257da337c63.svg
