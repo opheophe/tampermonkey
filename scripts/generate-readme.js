@@ -7,10 +7,10 @@ const BRANCH = 'main';
 
 // 1. Scan for all .js files in the root directory (excluding hidden files & scripts folder)
 const files = fs.readdirSync('.')
-    .filter(file => file.endsWith('.js') && !file.startsWith('.'))
+    .filter(file => file.endsWith('.user.js') && !file.startsWith('.'))
     .sort();
 
-let markdownTable = '\n| Script Name | Description | Install Link |\n| :--- | :--- | :--- | :--- |\n';
+let markdownTable = '\n| Script Name | Description | Install Link |\n| :--- | :--- | :--- |\n';
 
 files.forEach(file => {
     const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${file}`;
