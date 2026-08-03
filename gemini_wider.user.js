@@ -8,8 +8,8 @@
 // @icon         https://www.gstatic.com/lamda/images/gemini_sparkle_aurora_33f86dc0c0257da337c63.svg
 // @grant        GM_addStyle
 // @run-at       document-end
-// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/gemini_wider.js
-// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/gemini_wider.js
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/gemini_wider.user.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/gemini_wider.user.js
 // ==/UserScript==
 
 (function() {
