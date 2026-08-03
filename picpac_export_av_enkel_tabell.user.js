@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         PicPac - Universal simple table-fetch
 // @namespace    http://tampermonkey.net/
-// @version      1.0.1
+// @version      1.2
 // @description  Fetches all pages sequentially for static tables and downloads CSV
 // @author       Cristopher Dahlström
 // @match        https://picpac.medovia.se/*
 // @run-at       document-idle
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_av_enkel_tabell.js
-// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_av_enkel_tabell.js
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_av_enkel_tabell.user.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_av_enkel_tabell.user.js
 // ==/UserScript==
 
 (function() {
