@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kickstarter Default to Newest
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Automatically changes default or 'magic' sorting to 'newest' on Kickstarter discover pages.
 // @author       You
 // @match        https://www.kickstarter.com/discover*
