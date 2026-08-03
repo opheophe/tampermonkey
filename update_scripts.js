@@ -12,6 +12,7 @@
 // @require      https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_av_enkel_tabell.js
 // @require      https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_fetch_lp_rec_date.js
 // @require      https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_page_dropdown.js
+// @require      https://raw.githubusercontent.com/opheophe/tampermonkey/main/gemini_wider.js
 
 
 // ==/UserScript==
