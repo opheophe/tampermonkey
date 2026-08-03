@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         Medovia PicPac - Inventeringssummering
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Calculates and displays the total sum of the Värde column on both results and durability pages.
 // @author       Ophe
 // @match        https://picpac.medovia.se/admin/stocktaking_results*
 // @match        https://picpac.medovia.se/item_transfer_assignments/pending_durability*
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inventeringssummering.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inventeringssummering.js
 // ==/UserScript==
 
 
