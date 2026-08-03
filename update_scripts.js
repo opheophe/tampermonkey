@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         All my Scripts
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Installs and runs all my Tampermonkey scripts at once!
 // @author       You
 // @match        *://*/*
