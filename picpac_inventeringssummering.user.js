@@ -7,8 +7,8 @@
 // @match        https://picpac.medovia.se/admin/stocktaking_results*
 // @match        https://picpac.medovia.se/item_transfer_assignments/pending_durability*
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inventeringssummering.js
-// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inventeringssummering.js
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inventeringssummering.user.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inventeringssummering.user.js
 // ==/UserScript==
 
 
