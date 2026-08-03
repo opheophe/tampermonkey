@@ -5,25 +5,28 @@ const REPO_OWNER = 'opheophe';
 const REPO_NAME = 'tampermonkey';
 const BRANCH = 'main';
 
-// 1. Scan for all .js files in the root directory (excluding hidden files and scripts folder)
+// 1. Scan for all .js files in the root directory (excluding hidden files & scripts folder)
 const files = fs.readdirSync('.')
     .filter(file => file.endsWith('.js') && !file.startsWith('.'))
     .sort();
 
-let markdownTable = '\n| Script Name | File Name | Install Link |\n| :--- | :--- | :--- |\n';
+let markdownTable = '\n| Script Name | Description | File Name | Install Link |\n| :--- | :--- | :--- | :--- |\n';
 
 files.forEach(file => {
     const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${file}`;
     const filePath = path.join('.', file);
     const content = fs.readFileSync(filePath, 'utf8');
 
-    // Extract @name tag from Tampermonkey metadata block, or fallback to filename
+    // Extract metadata tags using regular expressions
     const nameMatch = content.match(/\/\/\s*@name\s+(.+)/);
-    const scriptName = nameMatch ? nameMatch[1].trim() : file;
+    const descMatch = content.match(/\/\/\s*@description\s+(.+)/);
 
-    // Build markdown row
+    const scriptName = nameMatch ? nameMatch[1].trim() : file;
+    const description = descMatch ? descMatch[1].trim() : 'No description provided.';
+
+    // Build table row
     const badge = `<img src="https://img.shields.io/badge/Install-Tampermonkey-008080?style=for-the-badge&logo=tampermonkey" height="26">`;
-    markdownTable += `| **${scriptName}** | \`${file}\` | [${badge}](${rawUrl}) |\n`;
+    markdownTable += `| **${scriptName}** | ${description} | \`${file}\` | [${badge}](${rawUrl}) |\n`;
 });
 
 // 2. Insert table into README between marker comments
@@ -35,4 +38,4 @@ const updatedReadme = readme.replace(
 );
 
 fs.writeFileSync('README.md', updatedReadme);
-console.log('Successfully updated README.md with latest script list!');
+console.log('Successfully updated README.md with descriptions!');
