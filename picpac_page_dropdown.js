@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         PicPac - Default 200 Rows (Universal)
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Forcibly sets rows per page dropdown to 200 on all Medovia PicPac datatables
+// @version      1.3
+// @description  Forcibly sets rows per page dropdown to x on all Medovia PicPac datatables
 // @author       Cristopher Dahlström
 // @match        https://picpac.medovia.se/*
 // @grant        none
 // @run-at       document-idle
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_page_dropdown.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_page_dropdown.js
 // ==/UserScript==
 
 (function() {
