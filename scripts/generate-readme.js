@@ -10,7 +10,7 @@ const files = fs.readdirSync('.')
     .filter(file => file.endsWith('.js') && !file.startsWith('.'))
     .sort();
 
-let markdownTable = '\n| Script Name | Description | File Name | Install Link |\n| :--- | :--- | :--- | :--- |\n';
+let markdownTable = '\n| Script Name | Description | Install Link |\n| :--- | :--- | :--- | :--- |\n';
 
 files.forEach(file => {
     const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${file}`;
@@ -26,7 +26,7 @@ files.forEach(file => {
 
     // Build table row
     const badge = `<img src="https://img.shields.io/badge/Install-Tampermonkey-008080?style=for-the-badge&logo=tampermonkey" height="26">`;
-    markdownTable += `| **${scriptName}** | ${description} | \`${file}\` | [${badge}](${rawUrl}) |\n`;
+    markdownTable += `| **${scriptName}** | ${description} | [${badge}](${rawUrl}) |\n`;
 });
 
 // 2. Insert table into README between marker comments
