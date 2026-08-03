@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -26,10 +28,7 @@ jobs:
       - name: Generate README
         run: node scripts/generate-readme.js
 
-      - name: Commit and Push Changes
-        run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          git diff-index --quiet HEAD || git commit -m "docs: auto-generate script links in README [skip ci]"
-          git push
+      - name: Commit & Push changes automatically
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: auto-generate script links in README [skip ci]"
