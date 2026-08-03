@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         PicPac - Fetch License Plate Received Date & Highlight Old Rows
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Fetches the "Mottaget" date and highlights rows older than 24 hours in light red
 // @author       Cristopher Dahlström
 // @match        https://picpac.medovia.se/admin/pallet_racks/*
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_fetch_lp_rec_date.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_fetch_lp_rec_date.js
 // ==/UserScript==
 
 (async function() {
