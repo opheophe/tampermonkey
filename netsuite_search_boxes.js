@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         NetSuite VNR & Transaction Search
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Adds VNR and Transaction ID search boxes to the top left
-// @author       You
+// @author       OpheOphe
 // @match        https://1313874.app.netsuite.com/*
 // @match        https://picpac.medovia.se/*
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/netsuite_search_boxes.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/netsuite_search_boxes.js
 // ==/UserScript==
 
 
