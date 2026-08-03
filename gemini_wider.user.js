@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gemini Chat Full Width & Table Un-Clipper
 // @namespace    https://gemini.google.com/
-// @version      3.2
+// @version      3.3
 // @description  Makes gemini wider.
 // @author       Your Friendly Neighborhood Coder
 // @match        https://gemini.google.com/*
