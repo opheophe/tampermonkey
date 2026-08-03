@@ -7,8 +7,8 @@
 // @match        https://1313874.app.netsuite.com/*
 // @match        https://picpac.medovia.se/*
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/netsuite_search_boxes.js
-// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/netsuite_search_boxes.js
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/netsuite_search_boxes.user.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/netsuite_search_boxes.user.js
 // ==/UserScript==
 
 // OBS: Sätt developer mode chrome://extensions/ och tillåt att tampermonkey kör script
