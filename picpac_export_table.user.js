@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         PicPac - Universal simple table-fetch
+// @name         PicPac - Universal Table CSV Exporter
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Fetches all pages sequentially for static tables and downloads CSV
+// @version      1.3
+// @description  Detects table pagination type (Static vs UI-Automated/AJAX), fetches all pages, and exports to CSV.
 // @author       Cristopher Dahlström
 // @match        https://picpac.medovia.se/*
 // @run-at       document-idle
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_av_enkel_tabell.user.js
-// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_av_enkel_tabell.user.js
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_table.user.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_export_table.user.js
 // ==/UserScript==
 
 (function() {
@@ -20,19 +20,26 @@
                doc.querySelector('table');
     }
 
+    // Detects whether table is static (server-rendered URL pagination) or dynamic (UI-driven/AJAX)
+    function getTableType(table) {
+        if (!table) return 'Unknown';
+
+        // Check for AJAX indicators or AngularJS data table containers
+        const isDynamic = table.hasAttribute('data-source') ||
+                          table.classList.contains('datatable') ||
+                          document.querySelector('#picking_assignment_lines') !== null;
+
+        return isDynamic ? 'UI-Automated' : 'Static';
+    }
+
     function tryInjectButton() {
-        // Don't duplicate if button is already present
         if (document.getElementById('tampermonkey-csv-btn')) return;
 
-        var initialTable = findMainTable();
-        if (!initialTable) return;
+        var mainTable = findMainTable();
+        if (!mainTable) return;
 
-        // Skip pages that explicitly fetch data dynamically via AJAX endpoint
-        if (initialTable.hasAttribute('data-source')) {
-            return;
-        }
+        var tableType = getTableType(mainTable);
 
-        // Find header toolbar target
         var headerTitle = document.querySelector('.header-title') ||
                           document.querySelector('.section-title') ||
                           document.querySelector('.site-content-toolbar');
@@ -45,7 +52,8 @@
 
         var btn = document.createElement('button');
         btn.id = 'tampermonkey-csv-btn';
-        btn.innerText = '📥 Export Table to CSV';
+        btn.innerText = `📥 Export Table to CSV (${tableType})`;
+        btn.dataset.tableType = tableType;
         btn.style.padding = '6px 12px';
         btn.style.backgroundColor = '#ffffff';
         btn.style.color = '#008080';
@@ -59,7 +67,6 @@
 
         headerTitle.appendChild(btn);
 
-        // Setup Overlay
         setupExportOverlay(btn);
     }
 
@@ -128,6 +135,17 @@
                 return;
             }
 
+            var tableType = btn.dataset.tableType || 'Static';
+
+            if (tableType === 'UI-Automated') {
+                runUIAutomatedFetch(mainTable, tbody);
+            } else {
+                runStaticFetch(mainTable, tbody);
+            }
+        });
+
+        // STRATEGY 1: Static HTML Page Fetching
+        function runStaticFetch(mainTable, tbody) {
             var totalPages = 1;
             var pageLinks = document.querySelectorAll('.pagination a, md-data-table-pagination a');
             for (var i = 0; i < pageLinks.length; i++) {
@@ -187,67 +205,122 @@
                     });
             }
 
-            function generateCSV() {
+            fetchNextPage();
+        }
+
+        // STRATEGY 2: UI Automated Click & Deduplicate Fetching (For AngularJS / DataTables)
+        async function runUIAutomatedFetch(mainTable, tbody) {
+            const harvestedRows = [];
+            const seenKeys = new Set();
+            let pageCount = 0;
+            let keepGoing = true;
+
+            while (keepGoing && pageCount < 20) {
                 if (isAborted) return;
 
-                var table = findMainTable();
-                if (table) {
-                    var rows = table.querySelectorAll('tr');
-                    var csvLines = [];
+                pageCount++;
+                progressText.innerText = `Collecting UI Page ${pageCount}...`;
+                progressBar.style.width = Math.min(pageCount * 15, 90) + '%';
 
-                    for (var r = 0; r < rows.length; r++) {
-                        var cells = rows[r].querySelectorAll('th, td');
-                        var rowData = [];
+                await new Promise(resolve => setTimeout(resolve, 400));
 
-                        var colCount = cells.length;
-                        var hasActionCol = colCount > 1 && (
-                            cells[colCount - 1].querySelector('md-icon, a, button') ||
-                            cells[colCount - 1].innerText.trim() === 'Visa'
-                        );
-                        var targetLength = hasActionCol ? colCount - 1 : colCount;
+                const currentRows = tbody.querySelectorAll('tr');
+                let newlyAdded = 0;
 
-                        for (var c = 0; c < targetLength; c++) {
-                            var cellText = cells[c].innerText.trim().replace(/\s+/g, ' ');
-                            cellText = cellText.replace(/"/g, '""');
-                            rowData.push('"' + cellText + '"');
-                        }
+                currentRows.forEach(row => {
+                    const actionLink = row.querySelector('a')?.getAttribute('href');
+                    const rowKey = actionLink || row.innerText.trim();
 
-                        if (rowData.length > 0) {
-                            csvLines.push(rowData.join(','));
-                        }
+                    if (rowKey && !seenKeys.has(rowKey)) {
+                        seenKeys.add(rowKey);
+                        harvestedRows.push(row.cloneNode(true));
+                        newlyAdded++;
                     }
+                });
 
-                    var pathParts = window.location.pathname.split('/').filter(Boolean);
-                    var pageName = pathParts.length > 0 ? pathParts[pathParts.length - 1] : 'export';
-                    var filename = pageName + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+                if (newlyAdded === 0) break;
 
-                    var csvContent = '\uFEFF' + csvLines.join('\n');
-                    var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    var url = URL.createObjectURL(blob);
-                    var link = document.createElement('a');
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', filename);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                const nextButton = Array.from(document.querySelectorAll('button, a, md-button'))
+                    .find(el => {
+                        const txt = el.innerText.trim().toUpperCase();
+                        return txt.includes('NÄSTA') || txt.includes('NEXT');
+                    });
+
+                if (!nextButton ||
+                    nextButton.hasAttribute('disabled') ||
+                    nextButton.getAttribute('aria-disabled') === 'true' ||
+                    nextButton.classList.contains('md-disabled') ||
+                    nextButton.classList.contains('disabled')) {
+                    keepGoing = false;
+                } else {
+                    nextButton.click();
                 }
-
-                overlay.style.display = 'none';
-                btn.disabled = false;
-                progressBar.style.width = '0%';
             }
 
-            fetchNextPage();
-        });
+            if (!isAborted) {
+                progressBar.style.width = '100%';
+                progressText.innerText = 'Generating CSV file...';
+                tbody.innerHTML = '';
+                harvestedRows.forEach(row => tbody.appendChild(row));
+                setTimeout(generateCSV, 100);
+            }
+        }
+
+        function generateCSV() {
+            if (isAborted) return;
+
+            var table = findMainTable();
+            if (table) {
+                var rows = table.querySelectorAll('tr');
+                var csvLines = [];
+
+                for (var r = 0; r < rows.length; r++) {
+                    var cells = rows[r].querySelectorAll('th, td');
+                    var rowData = [];
+
+                    var colCount = cells.length;
+                    var hasActionCol = colCount > 1 && (
+                        cells[colCount - 1].querySelector('md-icon, a, button') ||
+                        cells[colCount - 1].innerText.trim() === 'Visa'
+                    );
+                    var targetLength = hasActionCol ? colCount - 1 : colCount;
+
+                    for (var c = 0; c < targetLength; c++) {
+                        var cellText = cells[c].innerText.trim().replace(/\s+/g, ' ');
+                        cellText = cellText.replace(/"/g, '""');
+                        rowData.push('"' + cellText + '"');
+                    }
+
+                    if (rowData.length > 0) {
+                        csvLines.push(rowData.join(','));
+                    }
+                }
+
+                var pathParts = window.location.pathname.split('/').filter(Boolean);
+                var pageName = pathParts.length > 0 ? pathParts[pathParts.length - 1] : 'export';
+                var filename = pageName + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+
+                var csvContent = '\uFEFF' + csvLines.join('\n');
+                var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                var url = URL.createObjectURL(blob);
+                var link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            overlay.style.display = 'none';
+            btn.disabled = false;
+            progressBar.style.width = '0%';
+        }
     }
 
-    // SPA Observer: Watches for page changes & mounts button dynamically
     var observer = new MutationObserver(function() {
         tryInjectButton();
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-
-    // Initial load call
     tryInjectButton();
 })();
