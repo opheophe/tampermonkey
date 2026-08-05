@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PicPac - Universal Table CSV Exporter
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Detects table pagination type (Static vs UI-Automated/AJAX), fetches all pages, and exports to CSV.
 // @author       Cristopher Dahlström
 // @match        https://picpac.medovia.se/*
