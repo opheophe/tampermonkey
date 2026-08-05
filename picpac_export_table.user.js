@@ -52,7 +52,7 @@
 
         var btn = document.createElement('button');
         btn.id = 'tampermonkey-csv-btn';
-        btn.innerText = `📥 Export Table to CSV (${tableType})`;
+        btn.innerText = `📥 Export CSV (${tableType})`;
         btn.dataset.tableType = tableType;
         btn.style.padding = '6px 12px';
         btn.style.backgroundColor = '#ffffff';
