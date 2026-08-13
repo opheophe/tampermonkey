@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PicPac - Universal Table CSV Exporter
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Detects table pagination type (Static vs UI-Automated/AJAX), fetches all pages, and exports to CSV.
 // @author       Cristopher Dahlström
 // @match        https://picpac.medovia.se/*
@@ -14,47 +14,286 @@
 (function() {
     'use strict';
 
+    function findLimitSelect() {
+        return document.querySelector('md-pagination select, md-data-table-container select, [md-data-table] select') ||
+               document.querySelector('select[ng-model*="limit"]');
+    }
+
     function findMainTable(doc = document) {
         return doc.querySelector('table.slim') ||
                doc.querySelector('table[md-data-table]') ||
                doc.querySelector('table');
     }
 
-    // Detects whether table is static (server-rendered URL pagination) or dynamic (UI-driven/AJAX)
-    function getTableType(table) {
+    function detectLogicType(table) {
         if (!table) return 'Unknown';
 
-        // Check for AJAX indicators or AngularJS data table containers
+        // 1. Static Server-Rendered Pagination
+        const pageLinks = document.querySelectorAll('.pagination a[href*="page="]');
+        if (pageLinks.length > 0) {
+            return 'Static';
+        }
+
+        // 2. Limit-controlled Dynamic Tables
+        const limitSelect = findLimitSelect();
+        if (limitSelect) {
+            // If already set to 1000000 (e.g. by Default x Rows script), it's ready as a Single pass
+            if (limitSelect.value === '1000000') {
+                return 'Single';
+            }
+            return 'Force single';
+        }
+
+        // 3. Dynamic DataTables / AJAX without visible dropdown
         const isDynamic = table.hasAttribute('data-source') ||
                           table.classList.contains('datatable') ||
                           document.querySelector('#picking_assignment_lines') !== null;
 
-        return isDynamic ? 'UI-Automated' : 'Static';
+        if (isDynamic) {
+            return 'Pagination';
+        }
+
+        return 'Single';
     }
 
-    function tryInjectButton() {
-        if (document.getElementById('tampermonkey-csv-btn')) return;
+    // Two-phase waiter for "Force single" mode
+    async function waitForTableReload(tbody, initialCount, statusCallback) {
+        const startTime = Date.now();
+        const maxWaitMs = 45000;
 
-        var mainTable = findMainTable();
-        if (!mainTable) return;
+        if (statusCallback) statusCallback('⏳ Triggering reload...');
 
-        var tableType = getTableType(mainTable);
+        while (Date.now() - startTime < 10000) {
+            const currentCount = tbody.querySelectorAll('tr').length;
+            if (currentCount !== initialCount || currentCount === 0) {
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
 
-        var headerTitle = document.querySelector('.header-title') ||
-                          document.querySelector('.section-title') ||
-                          document.querySelector('.site-content-toolbar');
+        let lastCount = -1;
+        let stablePasses = 0;
 
-        if (!headerTitle) return;
+        while (Date.now() - startTime < maxWaitMs) {
+            const currentCount = tbody.querySelectorAll('tr').length;
 
-        headerTitle.style.display = 'flex';
-        headerTitle.style.alignItems = 'center';
-        headerTitle.style.gap = '15px';
+            if (statusCallback) {
+                statusCallback(`⏳ Loading rows... (${currentCount} loaded)`);
+            }
 
-        var btn = document.createElement('button');
-        btn.id = 'tampermonkey-csv-btn';
-        btn.innerText = `📥 Export CSV (${tableType})`;
-        btn.dataset.tableType = tableType;
+            if (currentCount > 0 && currentCount === lastCount) {
+                stablePasses++;
+                if (stablePasses >= 5) {
+                    return true;
+                }
+            } else {
+                stablePasses = 0;
+                lastCount = currentCount;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        return false;
+    }
+
+    // Explicit DataTables page harvester
+    async function runDataTablesPaginationHarvest(mainTable, tbody, statusCallback) {
+        const harvestedRowsData = [];
+
+        let dtInstance = null;
+        if (window.jQuery) {
+            if (window.jQuery.fn.DataTable && window.jQuery.fn.DataTable.isDataTable(mainTable)) {
+                dtInstance = window.jQuery(mainTable).DataTable();
+            } else if (window.jQuery(mainTable).dataTable) {
+                dtInstance = window.jQuery(mainTable).dataTable().api();
+            }
+        }
+
+        function harvestCurrentDOMRows() {
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            let count = 0;
+
+            rows.forEach(r => {
+                const cells = Array.from(r.querySelectorAll('th, td'));
+                if (cells.length === 0) return;
+                const line = extractLineCells(cells);
+                if (line.length > 0) {
+                    harvestedRowsData.push(line);
+                    count++;
+                }
+            });
+            return count;
+        }
+
+        if (dtInstance) {
+            try {
+                const totalRecords = dtInstance.page.info().recordsTotal || 100000;
+                dtInstance.page.len(totalRecords).draw(false);
+                await new Promise(resolve => {
+                    const timer = setTimeout(resolve, 1500);
+                    window.jQuery(mainTable).one('draw.dt', () => { clearTimeout(timer); resolve(); });
+                });
+            } catch (e) {}
+
+            const info = dtInstance.page.info();
+
+            if (info.pages <= 1) {
+                harvestCurrentDOMRows();
+            } else {
+                const totalPages = info.pages;
+
+                for (let p = 0; p < totalPages; p++) {
+                    if (statusCallback) {
+                        statusCallback(`⏳ Fetching page ${p + 1} of ${totalPages}... (${harvestedRowsData.length} rows)`);
+                    }
+
+                    dtInstance.page(p).draw('page');
+
+                    await new Promise(resolve => {
+                        const timer = setTimeout(resolve, 3000);
+                        window.jQuery(mainTable).one('draw.dt', () => {
+                            clearTimeout(timer);
+                            resolve();
+                        });
+                    });
+
+                    harvestCurrentDOMRows();
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                dtInstance.page(0).draw('page');
+            }
+        } else {
+            harvestCurrentDOMRows();
+        }
+
+        const headerCells = Array.from(mainTable.querySelectorAll('thead th, thead td'));
+        const headers = headerCells.map(c => c.innerText.trim().replace(/\s+/g, ' ').replace(/"/g, '""'));
+
+        let csvLines = [];
+        if (headers.length > 0) {
+            csvLines.push(headers.map(h => `"${h}"`).join(','));
+        }
+        harvestedRowsData.forEach(rowCells => {
+            csvLines.push(rowCells.map(c => `"${c}"`).join(','));
+        });
+
+        return csvLines;
+    }
+
+    async function runStaticFetch(mainTable, tbody, statusCallback) {
+        let totalPages = 1;
+        const pageLinks = document.querySelectorAll('.pagination a[href*="page="]');
+        pageLinks.forEach(link => {
+            const match = link.href.match(/page=(\d+)/);
+            if (match) {
+                const p = parseInt(match[1], 10);
+                if (p > totalPages) totalPages = p;
+            }
+        });
+
+        for (let currentPage = 2; currentPage <= totalPages; currentPage++) {
+            if (statusCallback) {
+                statusCallback(`⏳ Fetching static page ${currentPage} of ${totalPages}...`);
+            }
+
+            const baseUrl = new URL(window.location.href);
+            baseUrl.searchParams.set('page', currentPage);
+
+            try {
+                const res = await fetch(baseUrl.href);
+                const text = await res.text();
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                const fetchedTable = findMainTable(doc);
+                const newRows = fetchedTable ? fetchedTable.querySelectorAll('tbody tr') : [];
+                newRows.forEach(r => tbody.appendChild(r));
+            } catch (e) {
+                console.error('Static fetch error', e);
+            }
+        }
+
+        return extractRowsFromTbody(tbody, mainTable);
+    }
+
+    function extractLineCells(cells) {
+        var colCount = cells.length;
+        var hasActionCol = colCount > 1 && (
+            cells[colCount - 1].querySelector('md-icon, a, button') ||
+            cells[colCount - 1].innerText.trim() === 'Visa'
+        );
+        var targetLength = hasActionCol ? colCount - 1 : colCount;
+
+        const lineData = [];
+        for (let c = 0; c < targetLength; c++) {
+            const cellText = cells[c].innerText.trim().replace(/\s+/g, ' ').replace(/"/g, '""');
+            lineData.push(cellText);
+        }
+        return lineData;
+    }
+
+    function extractRowsFromTbody(tbody, mainTable) {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const headerCells = Array.from(mainTable.querySelectorAll('thead th, thead td'));
+        const headers = headerCells.map(c => c.innerText.trim().replace(/\s+/g, ' ').replace(/"/g, '""'));
+
+        let csvLines = [];
+        if (headers.length > 0) {
+            csvLines.push(headers.map(h => `"${h}"`).join(','));
+        }
+
+        rows.forEach(r => {
+            const cells = Array.from(r.querySelectorAll('th, td'));
+            if (cells.length === 0) return;
+            const lineData = extractLineCells(cells);
+            if (lineData.length > 0) {
+                csvLines.push(lineData.map(c => `"${c}"`).join(','));
+            }
+        });
+
+        return csvLines;
+    }
+
+    function downloadCSV(csvLines) {
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const pageName = pathParts.length > 0 ? pathParts[pathParts.length - 1] : 'export';
+        const filename = pageName + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+
+        const blob = new Blob(['\uFEFF' + csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function injectButton() {
+        const tableEl = findMainTable();
+        if (!tableEl) return;
+
+        const logicType = detectLogicType(tableEl);
+        let btn = document.getElementById('picpac-export-btn');
+
+        if (btn) {
+            btn.innerText = `📥 Export CSV (${logicType})`;
+            return;
+        }
+
+        const container = document.querySelector('.header-title') || document.querySelector('.site-content-toolbar');
+        if (!container) return;
+
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+
+        btn = document.createElement('button');
+        btn.id = 'picpac-export-btn';
+        btn.innerText = `📥 Export CSV (${logicType})`;
+
         btn.style.padding = '6px 12px';
+        btn.style.marginLeft = '15px';
         btn.style.backgroundColor = '#ffffff';
         btn.style.color = '#008080';
         btn.style.border = '1px solid #008080';
@@ -63,264 +302,74 @@
         btn.style.cursor = 'pointer';
         btn.style.fontSize = '13px';
         btn.style.lineHeight = '1.2';
-        btn.style.zIndex = '1000';
+        btn.style.height = 'auto';
+        btn.style.width = 'auto';
 
-        headerTitle.appendChild(btn);
-
-        setupExportOverlay(btn);
-    }
-
-    function setupExportOverlay(btn) {
-        if (document.getElementById('export-overlay')) return;
-
-        var overlay = document.createElement('div');
-        overlay.id = 'export-overlay';
-        overlay.style.display = 'none';
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100vw';
-        overlay.style.height = '100vh';
-        overlay.style.background = 'rgba(0, 0, 0, 0.6)';
-        overlay.style.zIndex = '100000';
-        overlay.style.justifyContent = 'center';
-        overlay.style.alignItems = 'center';
-
-        var dialog = document.createElement('div');
-        dialog.style.background = '#ffffff';
-        dialog.style.padding = '24px 32px';
-        dialog.style.borderRadius = '8px';
-        dialog.style.textAlign = 'center';
-        dialog.style.minWidth = '320px';
-        dialog.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)';
-
-        dialog.innerHTML =
-            '<h3 style="margin-top:0; color: #333;">Fetching Pages...</h3>' +
-            '<p id="export-progress-text" style="font-size: 16px; color: #555; margin: 15px 0;">Preparing request...</p>' +
-            '<div style="background: #eee; border-radius: 4px; height: 12px; width: 100%; overflow: hidden; margin-bottom: 20px;">' +
-                '<div id="export-progress-bar" style="background: #008080; height: 100%; width: 0%; transition: width 0.2s;"></div>' +
-            '</div>' +
-            '<button id="export-abort-btn" style="padding: 8px 16px; background-color: #d32f2f; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Abort Export</button>';
-
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-
-        var progressText = dialog.querySelector('#export-progress-text');
-        var progressBar = dialog.querySelector('#export-progress-bar');
-        var abortBtn = dialog.querySelector('#export-abort-btn');
-
-        var isAborted = false;
-        var timeoutId = null;
-
-        abortBtn.addEventListener('click', function() {
-            isAborted = true;
-            if (timeoutId) clearTimeout(timeoutId);
-            overlay.style.display = 'none';
-            btn.disabled = false;
-            progressBar.style.width = '0%';
-        });
-
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', async function() {
             btn.disabled = true;
-            isAborted = false;
-            overlay.style.display = 'flex';
 
-            var mainTable = findMainTable();
-            var tbody = mainTable ? mainTable.querySelector('tbody') : null;
-
-            if (!tbody) {
-                alert('Table container not found on this page!');
-                overlay.style.display = 'none';
+            const mainTable = findMainTable();
+            if (!mainTable) {
+                alert('Table element not found.');
                 btn.disabled = false;
                 return;
             }
 
-            var tableType = btn.dataset.tableType || 'Static';
-
-            if (tableType === 'UI-Automated') {
-                runUIAutomatedFetch(mainTable, tbody);
-            } else {
-                runStaticFetch(mainTable, tbody);
+            const tbody = mainTable.querySelector('tbody');
+            if (!tbody) {
+                alert('Table body not found.');
+                btn.disabled = false;
+                return;
             }
+
+            const activeLogic = detectLogicType(mainTable);
+            let csvLines = [];
+
+            if (activeLogic === 'Force single') {
+                const limitSelect = findLimitSelect();
+                const initialRowCount = tbody.querySelectorAll('tr').length;
+                const isAlreadyExpanded = limitSelect && limitSelect.value === '1000000';
+
+                if (limitSelect && !isAlreadyExpanded) {
+                    let optionExists = Array.from(limitSelect.options).some(opt => opt.value === '1000000');
+                    if (!optionExists) {
+                        const newOption = document.createElement('option');
+                        newOption.value = '1000000';
+                        newOption.text = '1000000';
+                        limitSelect.add(newOption);
+                    }
+
+                    limitSelect.value = '1000000';
+                    limitSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    limitSelect.dispatchEvent(new Event('input', { bubbles: true }));
+
+                    await waitForTableReload(tbody, initialRowCount, text => { btn.innerText = text; });
+                }
+                btn.innerText = '⏳ Generating CSV...';
+                csvLines = extractRowsFromTbody(tbody, mainTable);
+            } else if (activeLogic === 'Pagination') {
+                csvLines = await runDataTablesPaginationHarvest(mainTable, tbody, text => { btn.innerText = text; });
+            } else if (activeLogic === 'Static') {
+                csvLines = await runStaticFetch(mainTable, tbody, text => { btn.innerText = text; });
+            } else { // Single
+                btn.innerText = '⏳ Generating CSV...';
+                csvLines = extractRowsFromTbody(tbody, mainTable);
+            }
+
+            downloadCSV(csvLines);
+
+            btn.disabled = false;
+            btn.innerText = `📥 Export CSV (${detectLogicType(mainTable)})`;
         });
 
-        // STRATEGY 1: Static HTML Page Fetching
-        function runStaticFetch(mainTable, tbody) {
-            var totalPages = 1;
-            var pageLinks = document.querySelectorAll('.pagination a, md-data-table-pagination a');
-            for (var i = 0; i < pageLinks.length; i++) {
-                var pageMatch = pageLinks[i].href.match(/page=(\d+)/);
-                if (pageMatch) {
-                    var pageNum = parseInt(pageMatch[1], 10);
-                    if (pageNum > totalPages) totalPages = pageNum;
-                }
-            }
-
-            var currentPage = 2;
-
-            function fetchNextPage() {
-                if (isAborted) return;
-
-                if (currentPage > totalPages) {
-                    progressText.innerText = 'Generating CSV file...';
-                    timeoutId = setTimeout(generateCSV, 100);
-                    return;
-                }
-
-                progressText.innerText = 'Fetching page ' + currentPage + ' of ' + totalPages + '...';
-                progressBar.style.width = Math.round((currentPage / totalPages) * 100) + '%';
-
-                var baseUrl = new URL(window.location.href);
-                baseUrl.searchParams.set('page', currentPage);
-
-                fetch(baseUrl.href)
-                    .then(function(response) {
-                        if (!response.ok) throw new Error('HTTP error ' + response.status);
-                        return response.text();
-                    })
-                    .then(function(text) {
-                        if (isAborted) return;
-
-                        var doc = new DOMParser().parseFromString(text, 'text/html');
-                        var fetchedTable = findMainTable(doc);
-                        var newRows = fetchedTable ? fetchedTable.querySelectorAll('tbody tr') : [];
-
-                        if (newRows.length === 0) {
-                            generateCSV();
-                            return;
-                        }
-
-                        for (var j = 0; j < newRows.length; j++) {
-                            tbody.appendChild(newRows[j]);
-                        }
-
-                        currentPage++;
-                        timeoutId = setTimeout(fetchNextPage, 200);
-                    })
-                    .catch(function(err) {
-                        console.error('Error fetching page ' + currentPage, err);
-                        if (isAborted) return;
-                        currentPage++;
-                        timeoutId = setTimeout(fetchNextPage, 200);
-                    });
-            }
-
-            fetchNextPage();
-        }
-
-        // STRATEGY 2: UI Automated Click & Deduplicate Fetching (For AngularJS / DataTables)
-        async function runUIAutomatedFetch(mainTable, tbody) {
-            const harvestedRows = [];
-            const seenKeys = new Set();
-            let pageCount = 0;
-            let keepGoing = true;
-
-            while (keepGoing && pageCount < 20) {
-                if (isAborted) return;
-
-                pageCount++;
-                progressText.innerText = `Collecting UI Page ${pageCount}...`;
-                progressBar.style.width = Math.min(pageCount * 15, 90) + '%';
-
-                await new Promise(resolve => setTimeout(resolve, 400));
-
-                const currentRows = tbody.querySelectorAll('tr');
-                let newlyAdded = 0;
-
-                currentRows.forEach(row => {
-                    const actionLink = row.querySelector('a')?.getAttribute('href');
-                    const rowKey = actionLink || row.innerText.trim();
-
-                    if (rowKey && !seenKeys.has(rowKey)) {
-                        seenKeys.add(rowKey);
-                        harvestedRows.push(row.cloneNode(true));
-                        newlyAdded++;
-                    }
-                });
-
-                if (newlyAdded === 0) break;
-
-                const nextButton = Array.from(document.querySelectorAll('button, a, md-button'))
-                    .find(el => {
-                        const txt = el.innerText.trim().toUpperCase();
-                        return txt.includes('NÄSTA') || txt.includes('NEXT');
-                    });
-
-                if (!nextButton ||
-                    nextButton.hasAttribute('disabled') ||
-                    nextButton.getAttribute('aria-disabled') === 'true' ||
-                    nextButton.classList.contains('md-disabled') ||
-                    nextButton.classList.contains('disabled')) {
-                    keepGoing = false;
-                } else {
-                    nextButton.click();
-                }
-            }
-
-            if (!isAborted) {
-                progressBar.style.width = '100%';
-                progressText.innerText = 'Generating CSV file...';
-                tbody.innerHTML = '';
-                harvestedRows.forEach(row => tbody.appendChild(row));
-                setTimeout(generateCSV, 100);
-            }
-        }
-
-        function generateCSV() {
-            if (isAborted) return;
-
-            var table = findMainTable();
-            if (table) {
-                var rows = table.querySelectorAll('tr');
-                var csvLines = [];
-
-                for (var r = 0; r < rows.length; r++) {
-                    var cells = rows[r].querySelectorAll('th, td');
-                    var rowData = [];
-
-                    var colCount = cells.length;
-                    var hasActionCol = colCount > 1 && (
-                        cells[colCount - 1].querySelector('md-icon, a, button') ||
-                        cells[colCount - 1].innerText.trim() === 'Visa'
-                    );
-                    var targetLength = hasActionCol ? colCount - 1 : colCount;
-
-                    for (var c = 0; c < targetLength; c++) {
-                        var cellText = cells[c].innerText.trim().replace(/\s+/g, ' ');
-                        cellText = cellText.replace(/"/g, '""');
-                        rowData.push('"' + cellText + '"');
-                    }
-
-                    if (rowData.length > 0) {
-                        csvLines.push(rowData.join(','));
-                    }
-                }
-
-                var pathParts = window.location.pathname.split('/').filter(Boolean);
-                var pageName = pathParts.length > 0 ? pathParts[pathParts.length - 1] : 'export';
-                var filename = pageName + '_' + new Date().toISOString().slice(0, 10) + '.csv';
-
-                var csvContent = '\uFEFF' + csvLines.join('\n');
-                var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                var url = URL.createObjectURL(blob);
-                var link = document.createElement('a');
-                link.setAttribute('href', url);
-                link.setAttribute('download', filename);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }
-
-            overlay.style.display = 'none';
-            btn.disabled = false;
-            progressBar.style.width = '0%';
-        }
+        container.appendChild(btn);
     }
 
-    var observer = new MutationObserver(function() {
-        tryInjectButton();
-    });
+    const checkExist = setInterval(() => {
+        if (findMainTable()) {
+            injectButton();
+        }
+    }, 500);
 
-    observer.observe(document.body, { childList: true, subtree: true });
-    tryInjectButton();
+    setTimeout(() => clearInterval(checkExist), 10000);
 })();
