@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         ApoSuite Debloat
+// @name         ApoSuiite Debloat
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.3
 // @description  Tighten margins, padding, and layout density on ApoSuite pages.
 // @author       Ophe
 // @match        https://picpac.medovia.se/*
@@ -14,14 +14,108 @@
     'use strict';
 
     const compactCSS = `
-        /* --- Top Welcome / Site Toolbar --- */
+        /* --- Zero Vertical Padding Tables --- */
+        table.md-table,
+        .aposuite-table table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+        }
+
+        /* Target all rows, headers, and cells */
+        table.md-table tr,
+        table.md-table tr.md-row,
+        .aposuite-table tr {
+            height: auto !important;
+            min-height: 0 !important;
+        }
+
+        table.md-table th,
+        table.md-table td,
+        table.md-table th.md-column,
+        table.md-table td.md-cell,
+        .aposuite-table th,
+        .aposuite-table td {
+            padding-top: 1px !important;
+            padding-bottom: 1px !important;
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+            height: 20px !important;
+            min-height: 0 !important;
+            line-height: 1.1 !important;
+            vertical-align: middle !important;
+            font-size: 0.82rem !important;
+        }
+
+        /* Direct overrides for nested spans, divs, or links inside table cells */
+        table.md-table td.md-cell *,
+        table.md-table th.md-column * {
+            line-height: 1.1 !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+
+        table.md-table th.md-column {
+            font-weight: 700 !important;
+            background-color: #f5f5f5 !important;
+            border-bottom: 1px solid #ccc !important;
+        }
+
+        /* --- Compact Visa Action Container --- */
+        table.md-table td.md-cell .layout,
+        table.md-table td.md-cell .layout-align-end-end {
+            min-height: 0 !important;
+            height: auto !important;
+        }
+
+        .aposuite-btn-small,
+        .aposuite-btn-tertiary {
+            padding: 0 6px !important;
+            min-height: 18px !important;
+            height: 18px !important;
+            line-height: 18px !important;
+            font-size: 0.75rem !important;
+            margin: 0 !important;
+        }
+
+        /* --- Forms, Filters & Inputs --- */
+        .aposuite-form-title {
+            font-size: 0.85rem !important;
+            margin: 2px 0 4px 0 !important;
+            padding: 0 !important;
+        }
+
+        .aposuite-scan-row {
+            padding: 4px 8px !important;
+        }
+
+        md-input-container,
+        .aposuite-field {
+            margin: 2px 0 !important;
+            padding: 0 !important;
+        }
+
+        md-input-container input.md-input,
+        select {
+            padding: 2px 4px !important;
+            height: 24px !important;
+            font-size: 0.85rem !important;
+        }
+
+        #sales-orders-search-type-container .layout-row,
+        #sales-orders-search-date-container .layout-row {
+            margin-right: 12px !important;
+            margin-bottom: 2px !important;
+            font-size: 0.82rem !important;
+        }
+
+        /* --- Header & Layout Spacing --- */
         .site-content-toolbar,
         .aposuite-toolbar,
         md-toolbar,
         md-toolbar.site-content-toolbar {
-            min-height: 32px !important;
-            height: 32px !important;
-            max-height: 32px !important;
+            min-height: 28px !important;
+            height: 28px !important;
+            max-height: 28px !important;
             padding: 0 8px !important;
             margin: 0 !important;
         }
@@ -29,107 +123,66 @@
         .site-content-toolbar .md-toolbar-tools,
         .aposuite-toolbar .md-toolbar-tools,
         md-toolbar .md-toolbar-tools {
-            height: 32px !important;
-            min-height: 32px !important;
-            max-height: 32px !important;
+            height: 28px !important;
+            min-height: 28px !important;
+            max-height: 28px !important;
             padding: 0 8px !important;
         }
 
-        .header-title {
-            padding: 0 !important;
-            margin: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-        }
-
         .section-title {
-            font-size: 0.95rem !important;
+            font-size: 0.9rem !important;
             line-height: 1 !important;
             padding: 0 !important;
             margin: 0 !important;
         }
 
-        /* --- Top App Bar (Main Navigation) --- */
         .aposuite-app-bar {
-            min-height: 38px !important;
-            height: 38px !important;
+            min-height: 34px !important;
+            height: 34px !important;
             padding: 0 12px !important;
         }
 
-        /* --- Tabs --- */
         md-tabs-wrapper,
         md-tabs-canvas {
-            height: 36px !important;
+            height: 28px !important;
         }
 
         .md-tab {
-            padding: 6px 12px !important;
+            padding: 2px 8px !important;
             line-height: 24px !important;
+            font-size: 0.82rem !important;
         }
 
-        /* --- General Layout & Grid --- */
-        .aposuite-columns {
-            gap: 12px !important;
-            padding: 8px !important;
+        #home_screen,
+        md-tab-content,
+        .md-padding {
+            padding: 2px 4px !important;
         }
 
-        .aposuite-column {
-            gap: 12px !important;
-        }
-
-        #home_screen, md-tab-content {
-            padding: 4px 8px !important;
-        }
-
-        /* --- Cards & Containers --- */
         .aposuite-card {
-            margin-bottom: 8px !important;
-            padding: 8px 10px !important;
-            border-radius: 6px !important;
+            margin-bottom: 4px !important;
+            padding: 4px 6px !important;
+            border-radius: 4px !important;
         }
 
         .aposuite-card-header {
-            font-size: 1rem !important;
+            font-size: 0.95rem !important;
             padding-bottom: 2px !important;
-            margin-bottom: 6px !important;
+            margin-bottom: 4px !important;
             min-height: auto !important;
         }
 
-        /* --- Lists & Navigation Items --- */
         .aposuite-list-item {
             margin: 0 !important;
             padding: 1px 0 !important;
-            min-height: 22px !important;
+            min-height: 18px !important;
             height: auto !important;
         }
 
         .aposuite-list-item a {
-            padding: 2px 4px !important;
-            font-size: 0.85rem !important;
-            line-height: 1.2 !important;
-        }
-
-        .aposuite-subheader {
-            padding: 4px 0 2px 0 !important;
-            margin-top: 2px !important;
-            font-size: 0.72rem !important;
-            font-weight: 700 !important;
-            text-transform: uppercase !important;
-        }
-
-        .aposuite-divider {
-            margin: 3px 0 !important;
-        }
-
-        /* --- Sidebar Adjustments --- */
-        .aposuite-sidebar .aposuite-nav-link {
-            padding: 4px 12px !important;
-            min-height: 28px !important;
-        }
-
-        .aposuite-nav-submenu li a {
-            padding: 3px 12px 3px 36px !important;
+            padding: 1px 4px !important;
             font-size: 0.82rem !important;
+            line-height: 1.1 !important;
         }
     `;
 
