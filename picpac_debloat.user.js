@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         ApoSuiite Debloat
+// @name         ApoSuite Debloat
 // @namespace    http://tampermonkey.net/
 // @version      1.3
 // @description  Tighten margins, padding, and layout density on ApoSuite pages.
