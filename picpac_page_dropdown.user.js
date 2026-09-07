@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PicPac - Default x Rows (Universal)
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Forcibly sets rows per page dropdown to x on all Medovia PicPac datatables
 // @author       Cristopher Dahlström
 // @match        https://picpac.medovia.se/*
@@ -11,49 +11,65 @@
 // @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_page_dropdown.user.js
 // ==/UserScript==
 
+
 (function() {
     'use strict';
 
-    // We keep scanning periodically for the dropdown setup
+    const TARGET_LIMIT = '1000000';
+
+    // Prevent execution if already redirected/processed to prevent refresh loops
+    if (window.location.search.includes(`per_page=${TARGET_LIMIT}`) ||
+        window.location.search.includes(`limit=${TARGET_LIMIT}`)) {
+        return;
+    }
+
     const checkExist = setInterval(() => {
-        // Targets the select elements inside any of ApoSuite's dynamic Angular table structures
-        const select = document.querySelector('md-pagination select, md-data-table-container select, [md-data-table] select') ||
+        const select = document.querySelector('select#per_page') ||
+                       document.querySelector('md-pagination select, md-data-table-container select, [md-data-table] select') ||
                        document.querySelector('select[ng-model*="limit"]');
 
         if (select) {
             clearInterval(checkExist);
-            setDropdownTo200(select);
+            applyLimit(select);
         }
-    }, 250); // Checks every 250ms
+    }, 250);
 
-    // Safety timeout: stop looking if no table is found after 10 seconds (avoids background overhead)
-    setTimeout(() => {
-        clearInterval(checkExist);
-    }, 10000);
+    setTimeout(() => clearInterval(checkExist), 10000);
 
-    function setDropdownTo200(selectElement) {
-        if (selectElement.value === '1000000') return;
+    function applyLimit(selectElement) {
+        // Handle server-side rendered links (like in this HTML structure)
+        if (selectElement.hasAttribute('onchange') && selectElement.getAttribute('onchange').includes('window.location')) {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('per_page', TARGET_LIMIT);
 
-        // Verify if 200 is present in the list; if not, inject it
-        let optionExists = Array.from(selectElement.options).some(opt => opt.value === '1000000');
+            // Construct new URL path format used by the options
+            const targetPathWithQuery = currentUrl.pathname + currentUrl.search;
 
+            // Check if option exists, create if missing
+            let optionExists = Array.from(selectElement.options).some(opt => opt.value.includes(`per_page=${TARGET_LIMIT}`));
+            if (!optionExists) {
+                const newOption = document.createElement('option');
+                newOption.value = targetPathWithQuery;
+                newOption.text = TARGET_LIMIT;
+                selectElement.add(newOption);
+            }
+
+            // Redirect safely to the update URL with query parameter
+            window.location.href = targetPathWithQuery;
+            return;
+        }
+
+        // Handle AngularJS dynamic client-side tables
+        let optionExists = Array.from(selectElement.options).some(opt => opt.value === TARGET_LIMIT);
         if (!optionExists) {
             const newOption = document.createElement('option');
-            newOption.value = '1000000';
-            newOption.text = '1000000';
+            newOption.value = TARGET_LIMIT;
+            newOption.text = TARGET_LIMIT;
             selectElement.add(newOption);
         }
 
-        // Apply change
-        selectElement.value = '1000000';
-
-        // Trigger both change and input events so AngularJS registers the update and reloads the table data
-        const changeEvent = new Event('change', { bubbles: true });
-        selectElement.dispatchEvent(changeEvent);
-
-        const inputEvent = new Event('input', { bubbles: true });
-        selectElement.dispatchEvent(inputEvent);
-
-        console.log('Tampermonkey: Successfully defaulted table limit to 1000000 rows.');
+        selectElement.value = TARGET_LIMIT;
+        selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+        selectElement.dispatchEvent(new Event('input', { bubbles: true }));
     }
 })();
