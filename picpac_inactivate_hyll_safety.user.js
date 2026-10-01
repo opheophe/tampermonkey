@@ -8,8 +8,8 @@
 // @match        http://*/admin/bin_locations/*
 // @match        https://*/admin/bin_locations/*
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inactivate_hyll_safety,user.js
-// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inactivate_hyll_safety,user.js
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inactivate_hyll_safety.user.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_inactivate_hyll_safety.user.js
 // ==/UserScript==
 
 (function () {
