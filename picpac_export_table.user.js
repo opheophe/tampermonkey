@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.5
 // @description  Detects table pagination type (Static vs UI-Automated/AJAX), fetches all pages, and exports to CSV.
-// @author       Cristopher Dahlström
+// @author       Ophe
 // @match        https://picpac.medovia.se/*
 // @run-at       document-idle
 // @grant        none

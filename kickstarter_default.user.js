@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.1
 // @description  Automatically changes default or 'magic' sorting to 'newest' on Kickstarter discover pages.
-// @author       You
+// @author       Ophe
 // @match        https://www.kickstarter.com/discover*
 // @run-at       document-start
 // @grant        none

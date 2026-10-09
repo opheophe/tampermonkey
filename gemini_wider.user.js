@@ -3,7 +3,7 @@
 // @namespace    https://gemini.google.com/
 // @version      3.3
 // @description  Makes gemini wider.
-// @author       Your Friendly Neighborhood Coder
+// @author       Ophe
 // @match        https://gemini.google.com/*
 // @icon         https://www.gstatic.com/lamda/images/gemini_sparkle_aurora_33f86dc0c0257da337c63.svg
 // @grant        GM_addStyle

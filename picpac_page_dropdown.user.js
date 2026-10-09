@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.7
 // @description  Forcibly sets rows per page dropdown to x on all Medovia PicPac datatables
-// @author       Cristopher Dahlström
+// @author       Ophe
 // @match        https://picpac.medovia.se/*
 // @grant        none
 // @run-at       document-idle

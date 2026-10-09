@@ -3,6 +3,7 @@
 // @namespace    local.tampermonkey.picpac
 // @version      0.20
 // @description  Beat the server page-size cap using a stable sort order, then merge all pages
+// @author       Ophe
 // @match        https://picpac.medovia.se/*
 // @match        https://picpac-1.sb.apoex.se/*
 // @include      /^https:\/\/picpac[^/]*\.(medovia\.se|apoex\.se)\//

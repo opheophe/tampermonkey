@@ -3,11 +3,11 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.6
 // @description  Fetches the "Mottaget" date and highlights rows older than 24 hours in light red
-// @author       Cristopher Dahlström
+// @author       Ophe
 // @match        https://picpac.medovia.se/admin/pallet_racks/*
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_fetch_lp_rec_date.js
-// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_fetch_lp_rec_date.js
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_fetch_lp_rec_date.user.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_fetch_lp_rec_date.user.js
 // ==/UserScript==
 
 (function() {
