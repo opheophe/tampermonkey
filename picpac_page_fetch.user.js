@@ -1,11 +1,13 @@
 // ==UserScript==
-// @name         PicPac force page size
+// @name         PicPac Page Fetch
 // @namespace    local.tampermonkey.picpac
-// @version      0.18
+// @version      0.19
 // @description  Beat the server page-size cap using a stable sort order, then merge all pages
 // @match        https://picpac.medovia.se/*
 // @match        https://picpac-1.sb.apoex.se/*
 // @include      /^https:\/\/picpac[^/]*\.(medovia\.se|apoex\.se)\//
+// @updateURL    https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_page_fetch.user.js
+// @downloadURL  https://raw.githubusercontent.com/opheophe/tampermonkey/main/picpac_page_fetch.user.js
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -82,7 +84,7 @@
   };
 
   var fullyLoaded = false;
-  var box, panel, clickSpan, autoCheck, status;
+  var box, panel, clickSpan, autoCheck, status, expanded = false, barWrap, barFill, pctEl, statusLine;
 
   var STORAGE_PREFIX = 'picpac.autoload.';
   function pageKey() { return STORAGE_PREFIX + location.origin + location.pathname; }
@@ -93,6 +95,21 @@
     try { if (v) localStorage.setItem(pageKey(), '1'); else localStorage.removeItem(pageKey()); } catch (e) {}
   }
 
+  function setProgress(pct, label) {
+    pct = Math.max(0, Math.min(100, Math.round(pct || 0)));
+    if (barFill) barFill.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (statusLine) statusLine.textContent = 'Loading... ' + (label || '0') + ' (' + pct + '%)';
+  }
+
+  function refreshProgressVisibility() {
+    if (!barWrap) return;
+    var blue = status === 'blue';
+    barWrap.style.opacity = blue ? '1' : '0';
+    if (pctEl) pctEl.style.opacity = (blue && !expanded) ? '1' : '0';
+    if (statusLine) statusLine.style.opacity = (blue && expanded) ? '1' : '0';
+  }
+
   function setStatus(state) {
     status = state;
     var colors = { red: '#c0392b', blue: '#2980b9', orange: '#e67e22', green: '#2e7d32' };
@@ -101,6 +118,8 @@
       clickSpan.style.opacity = (state === 'orange') ? '1' : '0.55';
       clickSpan.style.cursor = (state === 'orange') ? 'pointer' : 'default';
     }
+    refreshProgressVisibility();
+    if (state === 'blue') setProgress(0, '0');
   }
 
   window.loadAllRows = function (force) {
@@ -183,6 +202,7 @@
               var total = totalOf(json) || knownTotal;
               if (total > serverTotal) serverTotal = total;
               addRows(rows);
+              if (serverTotal) setProgress(all.length / serverTotal * 100, all.length + '/' + serverTotal);
               if (rows.length === 0) return next();
               if (total && start + rows.length >= total) return next();
               fetch(start + rows.length);
@@ -262,8 +282,63 @@
   };
 
   panel.appendChild(autoLabel);
+
+  statusLine = document.createElement('span');
+  statusLine.style.fontSize = '10px';
+  statusLine.style.fontWeight = '600';
+  statusLine.style.opacity = '0';
+  statusLine.style.transition = 'opacity 0.2s ease-in-out';
+  panel.appendChild(statusLine);
+
   panel.appendChild(clickSpan);
   box.appendChild(panel);
+
+  barWrap = document.createElement('div');
+  barWrap.style.position = 'absolute';
+  barWrap.style.left = '0';
+  barWrap.style.right = '0';
+  barWrap.style.bottom = '0';
+  barWrap.style.top = '0';
+  barWrap.style.pointerEvents = 'none';
+  barWrap.style.opacity = '0';
+  barWrap.style.transition = 'opacity 0.2s ease-in-out';
+
+  var barTrack = document.createElement('div');
+  barTrack.style.position = 'absolute';
+  barTrack.style.left = '0';
+  barTrack.style.right = '0';
+  barTrack.style.bottom = '0';
+  barTrack.style.height = '3px';
+  barTrack.style.background = 'rgba(255,255,255,0.25)';
+  barWrap.appendChild(barTrack);
+
+  barFill = document.createElement('div');
+  barFill.style.position = 'absolute';
+  barFill.style.left = '0';
+  barFill.style.top = '0';
+  barFill.style.bottom = '0';
+  barFill.style.width = '0%';
+  barFill.style.background = '#ffffff';
+  barFill.style.transition = 'width 0.2s ease-in-out';
+  barWrap.appendChild(barFill);
+
+  pctEl = document.createElement('div');
+  pctEl.style.position = 'absolute';
+  pctEl.style.top = '50%';
+  pctEl.style.left = '0';
+  pctEl.style.right = '0';
+  pctEl.style.transform = 'translateY(-50%)';
+  pctEl.style.textAlign = 'center';
+  pctEl.style.fontSize = '6px';
+  pctEl.style.fontWeight = '700';
+  pctEl.style.lineHeight = '1';
+  pctEl.style.color = '#ffffff';
+  pctEl.style.textShadow = '0 0 2px rgba(0,0,0,0.5)';
+  pctEl.style.opacity = '0';
+  pctEl.style.transition = 'opacity 0.2s ease-in-out';
+  barWrap.appendChild(pctEl);
+
+  box.appendChild(barWrap);
 
   autoCheck.onchange = function () {
     setAutoloadEnabled(autoCheck.checked);
@@ -271,17 +346,21 @@
   };
 
   box.onmouseenter = function () {
+    expanded = true;
     box.style.width = 'auto';
     box.style.height = 'auto';
     box.style.padding = '3px 4px';
     panel.style.opacity = '1';
+    refreshProgressVisibility();
   };
   box.onmouseleave = function () {
     if (box.contains(document.activeElement)) return;
+    expanded = false;
     box.style.width = '5mm';
     box.style.height = '5mm';
     box.style.padding = '0px';
     panel.style.opacity = '0';
+    refreshProgressVisibility();
   };
 
   document.body.appendChild(box);
