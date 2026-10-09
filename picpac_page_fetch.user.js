@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PicPac Page Fetch
 // @namespace    local.tampermonkey.picpac
-// @version      0.19
+// @version      0.20
 // @description  Beat the server page-size cap using a stable sort order, then merge all pages
 // @match        https://picpac.medovia.se/*
 // @match        https://picpac-1.sb.apoex.se/*
@@ -105,8 +105,9 @@
   function refreshProgressVisibility() {
     if (!barWrap) return;
     var blue = status === 'blue';
-    barWrap.style.opacity = blue ? '1' : '0';
-    if (pctEl) pctEl.style.opacity = (blue && !expanded) ? '1' : '0';
+    var onBox = blue && !expanded;
+    barWrap.style.opacity = onBox ? '1' : '0';
+    if (pctEl) pctEl.style.opacity = onBox ? '1' : '0';
     if (statusLine) statusLine.style.opacity = (blue && expanded) ? '1' : '0';
   }
 
@@ -249,7 +250,11 @@
   panel.style.display = 'flex';
   panel.style.flexDirection = 'column';
   panel.style.gap = '2px';
-  panel.style.padding = '0 4px';
+  panel.style.padding = '4px 6px';
+  panel.style.backgroundColor = '#ffffff';
+  panel.style.color = '#1a1a1a';
+  panel.style.borderRadius = '4px';
+  panel.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.35)';
   panel.style.opacity = '0';
   panel.style.transition = 'opacity 0.2s ease-in-out';
 
@@ -286,6 +291,7 @@
   statusLine = document.createElement('span');
   statusLine.style.fontSize = '10px';
   statusLine.style.fontWeight = '600';
+  statusLine.style.color = '#1a1a1a';
   statusLine.style.opacity = '0';
   statusLine.style.transition = 'opacity 0.2s ease-in-out';
   panel.appendChild(statusLine);
